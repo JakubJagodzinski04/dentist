@@ -31,11 +31,11 @@ docker run -it --rm --gpus all --net host --privileged --env-file .env -v /tmp/.
 ```
 
 
-4. Wewnątrz kontenera skompiluj i załaduj środowisko ROS 2:
+4. Wewnątrz kontenera załaduj środowisko i skompiluj paczkę (z użyciem dowiązań symbolicznych):
 ```bash
 cd /workspace/ros2_ws
-colcon build --packages-select vision_pipeline
 source /opt/ros/humble/setup.bash
+colcon build --packages-select vision_pipeline --symlink-install
 source install/setup.bash
 
 ```
@@ -100,3 +100,6 @@ rviz2
 
 **Gotowe!** Model analizuje obraz i nakłada surowe maski na obiekty. Z uwagi na zoptymalizowaną heurystykę dla powolnych modeli (Grace Period = 0), maski odzwierciedlają twardy stan faktyczny z danej mikrosekundy – znikną natychmiast, gdy narzędzie medyczne zostanie zasłonięte przez dłoń operatora lub usunięte z kadru.
 
+```
+
+```

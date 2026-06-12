@@ -1,0 +1,15 @@
+# Parametry fizyczne chwytaka PAL Robotics (TIAGo Pro)
+# Zoptymalizowane pod narzedzia medyczne i minimalizacje kolizji z blatem
+
+gripper_config:
+  # Maksymalne rozwarcie szczęk w metrach (ok. 8.5 cm)
+  max_width: 0.085
+  
+  # Głębokość penetracji palców (jak daleko obiekt wchodzi między szczęki)
+  finger_depth: 0.045
+  
+  # Bezpieczny dystans (stand-off) od środka chwytaka do obiektu (zapobiega zderzeniom z podłożem)
+  standoff: 0.015
+  
+  # Minimalna gęstość punktów w chmurze (Points Per Object), aby chwyt został uznany za stabilny
+  min_points_threshold: 50
