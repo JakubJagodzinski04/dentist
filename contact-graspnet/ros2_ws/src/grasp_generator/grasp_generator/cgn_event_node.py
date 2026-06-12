@@ -39,7 +39,7 @@ class ContactGraspnetEventNode(Node):
             cv_mask = self.bridge.imgmsg_to_cv2(msg_mask, desired_encoding='passthrough')
             cv_depth = self.bridge.imgmsg_to_cv2(msg_depth, desired_encoding='passthrough')
 
-            # 1. Bezwzględne spłaszczenie maski do 1 kanału (Rozwiązuje błąd OpenCV)
+            # 1. Bezwzględne spłaszczenie maski do 1 kanału
             if len(cv_mask.shape) == 3:
                 cv_mask = cv_mask[:, :, 0]
 
@@ -56,19 +56,45 @@ class ContactGraspnetEventNode(Node):
                 
             first_object_id = object_ids[0]
             
-            # 3. Maska jako mnożnik algebraiczny o typie głębi
+            # 3. Maska jako mnożnik algebraiczny
             binary_mask = (cv_mask_resized == first_object_id).astype(cv_depth.dtype)
 
-            # 4. Jeżeli głębia ma 3 kanały, powielamy maskę na 3 kanały dla wymnożenia
+            # 4. Dopasowanie kanałów do wymnożenia
             if len(cv_depth.shape) == 3:
                 binary_mask = np.expand_dims(binary_mask, axis=-1)
 
-            # 5. Czyste matematyczne wycięcie (Algebra zamiast instrukcji warunkowych)
+            # 5. Matematyczne wycięcie
             isolated_depth = cv_depth * binary_mask
 
-            self.get_logger().info(f"⚡ Przetwarzam 1st Crop (ID: {first_object_id}). GPU liczy...")
+            # 6. OBLICZANIE ŚRODKA CIĘŻKOŚCI (Centroid) W 3D
+            flat_mask = binary_mask[:, :, 0] if len(binary_mask.shape) == 3 else binary_mask
+            v_indices, u_indices = np.where(flat_mask > 0)
             
-            self.publish_dummy_marker()
+            if len(v_indices) > 0:
+                v_center = int(np.mean(v_indices))
+                u_center = int(np.mean(u_indices))
+                
+                valid_depths = isolated_depth[isolated_depth > 0]
+                
+                if len(valid_depths) > 0:
+                    Z_raw = np.mean(valid_depths)
+                    
+                    Z = float(Z_raw) / 1000.0 if Z_raw > 10.0 else float(Z_raw)
+                    
+                    fx, fy = 500.0, 500.0
+                    cx, cy = depth_w / 2.0, depth_h / 2.0
+                    
+                    X = (u_center - cx) * Z / fx
+                    Y = (v_center - cy) * Z / fy
+                    
+                    self.get_logger().info(f"🎯 Narzędzie: X={X:.3f}m, Y={Y:.3f}m, Z={Z:.3f}m")
+                    
+                    # Publikacja dynamicznego markera
+                    self.publish_real_marker(X, Y, Z)
+                else:
+                    self.get_logger().warn("Maska istnieje, ale brak w niej odczytów głębi.")
+            else:
+                self.get_logger().warn("Błąd: Maska jest pusta (brak pikseli).")
 
         except Exception as e:
             self.get_logger().error(f"Błąd przetwarzania: {e}")
@@ -77,29 +103,33 @@ class ContactGraspnetEventNode(Node):
         finally:
             self.is_computing = False
 
-    def publish_dummy_marker(self):
+    def publish_real_marker(self, x, y, z):
         marker_array = MarkerArray()
         marker = Marker()
-        marker.header.frame_id = "camera_link"
+        marker.header.frame_id = "camera_link" 
         marker.header.stamp = self.get_clock().now().to_msg()
         marker.ns = "grasps"
         marker.id = 0
         marker.type = Marker.CUBE
         marker.action = Marker.ADD
-        marker.pose.position.x = 0.0
-        marker.pose.position.y = 0.0
-        marker.pose.position.z = 0.5 
+        
+        marker.pose.position.x = float(x)
+        marker.pose.position.y = float(y)
+        marker.pose.position.z = float(z) 
+        
         marker.pose.orientation.w = 1.0
+        
         marker.scale.x = 0.02
         marker.scale.y = 0.085
         marker.scale.z = 0.02
+        
         marker.color.r = 0.0
         marker.color.g = 1.0
         marker.color.b = 0.0
         marker.color.a = 0.8
+        
         marker_array.markers.append(marker)
         self.marker_pub.publish(marker_array)
-        self.get_logger().info("✅ Wynik w RViz2. GPU odblokowane.")
 
 def main(args=None):
     rclpy.init(args=args)
