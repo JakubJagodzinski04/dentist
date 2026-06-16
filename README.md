@@ -7,29 +7,50 @@ Projekt wykrywania i pozycjonowania narzędzi stomatologicznych w przestrzeni 3D
 ### Architektura Systemu Wieloagentowego
 ```mermaid
 graph TD
-    Cam[Kamera RGB laptopa] --> N_Cam[Węzeł: usb_cam_node]
-    DepthCam[Kamera 3D np. RealSense] --> N_Grasp[Węzeł: graspnet_node]
-
-    subgraph Kontener AI SAM3 GPU
-        N_Sam[Węzeł: sam_tracker_node]
-        P_SAM3{{Model SAM3 PyTorch}}
-        N_Sam -->|Zapytanie wizyjne| P_SAM3
-        P_SAM3 -->|Maska z inferencji| N_Sam
+    %% Input Data Sources
+    subgraph Input_Modules ["Input Modules (CycloneDDS)"]
+        Src_Sim[Simulator: mock_camera <br> './sim_orbbec_camera.sh']
+        Src_Live[Physical Camera: orbbec_live <br> './run_live.sh']
     end
 
-    subgraph Kontener Contact-GraspNet
-        N_Grasp
-        P_Grasp{{Model Contact-GraspNet}}
-        N_Grasp -->|Ocena punktów 3D| P_Grasp
-        P_Grasp -->|Współrzędne docelowe| N_Grasp
+    %% Pipeline A: Detection (YOLO)
+    subgraph YOLO_Path ["Path A: High-Speed Detection (YOLOv8)"]
+        N_Yolo[ROS 2 Node: camera_and_yolo]
+        P_Yolo{{YOLOv8 Model}}
+        N_Yolo -->|Fast Inference| P_Yolo
+        P_Yolo -->|Bounding Boxes| N_Yolo
     end
 
-    N_Cam -->|Topik: /image_raw ~30 FPS| N_Sam
-    N_Sam -->|Topik: /sam3/smoothed_mask ~3 FPS| N_Grasp
-    N_Grasp -->|Topik: /tiago/grasp_pose| Robot[Robot TIAGo Pro]
+    %% Pipeline B: Precise Manipulation (SAM3 + CGN)
+    subgraph Manipulation_Path ["Path B: Precise Manipulation (SAM3 + CGN)"]
+        subgraph SAM3_Cont ["SAM3 Container"]
+            N_Sam[Node: sam_tracker]
+            P_SAM3{{SAM3 Model <br> CUDA 12.8}}
+            N_Sam -->|Query| P_SAM3
+            P_SAM3 -->|Inference Mask| N_Sam
+        end
+        subgraph CGN_Cont ["CGN Container"]
+            N_Grasp[Node: cgn_event_node]
+            P_Grasp{{CGN Model <br> CUDA 12.8}}
+            N_Grasp -->|3D Eval| P_Grasp
+            P_Grasp -->|Grasp Vectors| N_Grasp
+        end
+        N_Sam -->|Topic: /sam3/smoothed_mask| N_Grasp
+    end
 
-    style Kontener AI SAM3 GPU fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
-    style Kontener Contact-GraspNet fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    %% Visualization
+    N_Yolo -->|Topic: /yolo/detections| RViz[RViz2]
+    N_Sam -.->|Mask Preview| RViz
+    N_Grasp -->|Topic: /cgn/grasp_markers| RViz
+
+    %% Logic flows
+    Src_Sim & Src_Live -->|RGB Stream| N_Yolo
+    Src_Sim & Src_Live -->|RGB+D Stream| N_Sam
+    Src_Sim & Src_Live -.->|Raw Depth| N_Grasp
+
+    %% Styling
+    style YOLO_Path fill:#fff8e1,stroke:#fbc02d,stroke-width:2px
+    style Manipulation_Path fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
 ```
 ## 🛠️ Wymagania systemowe
 - System: Ubuntu 24.04 (Noble Numbat).
