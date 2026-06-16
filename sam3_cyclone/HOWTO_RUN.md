@@ -76,3 +76,4 @@ Konfiguracja podglądu:
 Dodaj obraz: Add -> By topic -> /sam3/smoothed_mask.
 
 Zmień Reliability Policy na Best Effort, aby uniknąć przerw w renderowaniu przy dużym obciążeniu.
+s
