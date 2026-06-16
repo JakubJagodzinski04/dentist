@@ -1,0 +1,34 @@
+# Pobieramy oficjalny system ROS 2 Humble jako bazę
+FROM osrf/ros:humble-desktop
+
+# KRYTYCZNE: Instalacja narzędzi, sterowników uvc i CycloneDDS
+RUN apt-get update && apt-get install -y \
+    ros-humble-rmw-cyclonedds-cpp \
+    ros-humble-cv-bridge \
+    ros-humble-image-transport \
+    build-essential \
+    cmake \
+    git \
+    libusb-1.0-0-dev \
+    libudev-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Wymuszenie CycloneDDS jako jedynego języka komunikacji
+ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+
+# Pobranie i kompilacja oficjalnych sterowników Orbbec
+WORKDIR /workspace/ros2_ws/src
+RUN git clone -b humble https://github.com/orbbec/OrbbecSDK_ROS2.git
+
+WORKDIR /workspace/ros2_ws
+RUN /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build --event-handlers console_direct+"
+
+# Skrypt startowy - po uruchomieniu kontenera od razu odpala kamerę
+RUN echo '#!/bin/bash\n\
+source /opt/ros/humble/setup.bash\n\
+source /workspace/ros2_ws/install/setup.bash\n\
+echo "🟢 Uruchamianie Orbbec Femto Bolt (CycloneDDS)..."\n\
+ros2 launch orbbec_camera femto_bolt.launch.py depth_registration:=true enable_point_cloud:=false\n\
+' > /workspace/start_camera.sh && chmod +x /workspace/start_camera.sh
+
+ENTRYPOINT ["/workspace/start_camera.sh"]

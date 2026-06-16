@@ -11,9 +11,8 @@ Poniższy poradnik przeprowadza przez proces uruchomienia środowiska sztucznej 
 W pierwszej kolejności budujemy i podnosimy ciężki kontener obliczeniowy, upewniając się, że ma dostęp do klucza HF oraz profilu sieciowego.
 
 1. Przejdź do folderu modułu SAM3:
-   ```bash
-   cd ~/robotics/dentist/sam3
-
+```bash
+cd ~/robotics/dentist/sam3
 ```
 
 2. Zbuduj obraz (wymagane tylko przy pierwszej instalacji lub po zmianie `Dockerfile`):
